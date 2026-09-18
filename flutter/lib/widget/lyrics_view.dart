@@ -438,15 +438,17 @@ class _LyricsViewState extends State<LyricsView> {
     final isPlayed = currentIndex != null && index < currentIndex;
     final distance = currentIndex == null ? 4 : (index - currentIndex).abs();
 
-    final opacity =
-        (isCurrent ? 1.0 : (isPlayed ? 0.38 : 0.72) - math.min(distance, 4) * 0.05)
-            .clamp(0.15, 1.0);
+    final opacity = (isCurrent
+            ? 1.0
+            : (isPlayed ? 0.38 : 0.72) - math.min(distance, 4) * 0.05)
+        .clamp(0.15, 1.0);
     final fontSize = isCurrent
         ? style.effectiveFontSize + 4
         : style.effectiveFontSize - math.min(distance, 2) * 1.5;
     final blurRadius = isCurrent
         ? 0.0
-        : math.min(math.max(distance - style.blurStart, 0) * style.blurAmount, 6.0);
+        : math.min(
+            math.max(distance - style.blurStart, 0) * style.blurAmount, 6.0);
 
     final accent = style.currentColor(palette);
     final dimColor = style.dimColor(palette);
@@ -518,24 +520,27 @@ class _LyricsViewState extends State<LyricsView> {
       }
     }
 
-    Widget content = Column(
-      crossAxisAlignment: crossAxisAlignment,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        text,
-        if (showTranslation) ...[
-          const SizedBox(height: 3),
-          Text(
-            line.translation!,
-            textAlign: textAlign,
-            style: TextStyle(
-              fontSize: style.effectiveFontSize * 0.68,
-              height: 1.2,
-              color: palette.secondary.withValues(alpha: 0.9),
+    Widget content = SizedBox(
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: crossAxisAlignment,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          text,
+          if (showTranslation) ...[
+            const SizedBox(height: 3),
+            Text(
+              line.translation!,
+              textAlign: textAlign,
+              style: TextStyle(
+                fontSize: style.effectiveFontSize * 0.68,
+                height: 1.2,
+                color: palette.secondary.withValues(alpha: 0.9),
+              ),
             ),
-          ),
+          ],
         ],
-      ],
+      ),
     );
 
     if (blurRadius > 0.05) {
@@ -578,7 +583,7 @@ class _LyricsViewState extends State<LyricsView> {
         ),
         child: Stack(
           children: [
-            SizedBox(width: double.infinity, child: content),
+            content,
             if (_selectionMode)
               Positioned(
                 top: 2,

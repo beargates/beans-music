@@ -73,22 +73,30 @@ class AudioPlayerManager {
     await _player.play();
   }
 
-  Future<void> playSongs(List<Song> songs, {int startAt = 0}) async {
+  Future<void> playSongs(
+    List<Song> songs, {
+    int startAt = 0,
+    bool skipUnavailable = false,
+  }) async {
     if (songs.isEmpty) return;
     _queue
       ..clear()
       ..addAll(songs);
-    await playQueueIndex(startAt);
+    await playQueueIndex(startAt, skipUnavailable: skipUnavailable);
   }
 
-  Future<void> playQueueIndex(int index) async {
+  Future<void> playQueueIndex(
+    int index, {
+    bool skipUnavailable = true,
+  }) async {
     if (index < 0 || index >= _queue.length) return;
     if (resolveUrl == null) {
       throw StateError('播放器尚未配置播放地址解析器');
     }
 
     Object? lastError;
-    for (var offset = 0; offset < _queue.length; offset++) {
+    final attempts = skipUnavailable ? _queue.length : 1;
+    for (var offset = 0; offset < attempts; offset++) {
       final candidateIndex = (index + offset) % _queue.length;
       final song = _queue[candidateIndex];
       try {

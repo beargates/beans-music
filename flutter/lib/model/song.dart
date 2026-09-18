@@ -1,3 +1,5 @@
+import '../service/cover_image.dart';
+
 enum SongSource { netease, qq, kugou }
 
 class Song {
@@ -102,7 +104,7 @@ class Song {
         .join(' / ');
 
     final album = (json['al'] as Map<String, dynamic>? ?? {});
-    final cover = album['picUrl'] as String? ?? '';
+    final cover = normalizeCoverUrl(album['picUrl'] as String?);
 
     return Song(
       id: (json['id'] as int?) ?? 0,

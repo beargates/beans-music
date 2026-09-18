@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'auth/netease_auth_store.dart';
@@ -23,7 +24,10 @@ import 'ui/player_page.dart';
 import 'ui/profile_page.dart';
 import 'ui/platform_login_page.dart';
 import 'ui/search_page.dart';
+import 'ui/discover_page.dart';
 import 'viewmodel/search_view_model.dart';
+import 'viewmodel/daily_recommend_viewmodel.dart';
+import 'service/daily_recommend_service.dart';
 import 'widget/mini_player.dart';
 
 class BeansMusicApp extends StatefulWidget {
@@ -36,7 +40,7 @@ class BeansMusicApp extends StatefulWidget {
 class _BeansMusicAppState extends State<BeansMusicApp> {
   final GlobalKey<ScaffoldMessengerState> _messengerKey =
       GlobalKey<ScaffoldMessengerState>();
-    final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   Dio? dio;
   MusicRepository? repository;
   SongUrlRepository? songUrlRepository;
@@ -105,11 +109,18 @@ class _BeansMusicAppState extends State<BeansMusicApp> {
   }
 
   Future<void> playSong(Song song, List<Song> songs) async {
-    final index = songs.indexWhere((item) => item.identityKey == song.identityKey);
-    if (index < 0) return;
+    final index = songs.indexWhere((item) => identical(item, song));
+    final resolvedIndex = index >= 0
+        ? index
+        : songs.indexWhere((item) => item.identityKey == song.identityKey);
+    if (resolvedIndex < 0) return;
     try {
       await libraryStore?.addHistory(song);
-      await playerManager?.playSongs(songs, startAt: index);
+      await playerManager?.playSongs(
+        songs,
+        startAt: resolvedIndex,
+        skipUnavailable: false,
+      );
     } catch (error) {
       _messengerKey.currentState?.showSnackBar(
         SnackBar(content: Text('播放失败：$error')),
@@ -132,129 +143,150 @@ class _BeansMusicAppState extends State<BeansMusicApp> {
         libraryStore != null &&
         lyricStyleStore != null;
     return MaterialApp(
-      scaffoldMessengerKey: _messengerKey,
-      navigatorKey: _navigatorKey,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFE5654B),
-          brightness: Brightness.light,
-          surface: const Color(0xFFFFFEFA),
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF5F4EF),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-          elevation: 0,
-          centerTitle: false,
-        ),
-        inputDecorationTheme: const InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(18)),
-            borderSide: BorderSide.none,
+        scaffoldMessengerKey: _messengerKey,
+        navigatorKey: _navigatorKey,
+        theme: ThemeData(
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFFE5654B),
+            brightness: Brightness.light,
+            surface: const Color(0xFFFFFEFA),
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(18)),
-            borderSide: BorderSide.none,
+          scaffoldBackgroundColor: const Color(0xFFF5F4EF),
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            centerTitle: false,
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(18)),
-            borderSide: BorderSide(color: Color(0xFFE5654B), width: 1.5),
-          ),
-          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        ),
-        navigationBarTheme: const NavigationBarThemeData(
-          backgroundColor: Color(0xFFFFFEFA),
-          surfaceTintColor: Colors.transparent,
-          indicatorColor: Color(0xFFFFDDD3),
-          elevation: 0,
-        ),
-      ),
-      home: Scaffold(
-        body: !ready
-            ? const Center(child: CircularProgressIndicator())
-            : IndexedStack(
-                index: _selectedTab,
-                children: [
-                  SearchPage(
-                    viewModel: SearchViewModel(repository!),
-                    onSongTapWithContext: (song, songs) async =>
-                        playSong(song, songs),
-                    onLoginTap: () {
-                        _navigatorKey.currentState?.push(
-                        MaterialPageRoute(
-                          builder: (_) => PlatformLoginPage(
-                            store: platformAuthStore!,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  LibraryPage(
-                    store: libraryStore!,
-                    onSongTap: playSong,
-                  ),
-                  ProfilePage(
-                    neteaseStore: neteaseAuthStore!,
-                    platformStore: platformAuthStore!,
-                  ),
-                ],
-              ),
-        bottomNavigationBar: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            MiniPlayer(
-              song: _currentSong,
-              isPlaying: _isPlaying,
-              onPlayPause: () async {
-                if (_currentSong == null) return;
-                if (_isPlaying && playerManager != null) {
-                  await playerManager!.pause();
-                } else {
-                  await playerManager?.resume();
-                }
-              },
-              onTap: () {
-                if (_currentSong == null) return;
-                  _navigatorKey.currentState?.push(
-                  MaterialPageRoute(
-                    builder: (_) => PlayerPage(
-                      song: _currentSong!,
-                      playerManager: playerManager!,
-                      style: lyricStyleStore!,
-                      lyricService: lyricService,
-                      downloadService: downloadService,
-                      colorExtractor: coverColorExtractor,
-                    ),
-                  ),
-                );
-              },
+          inputDecorationTheme: const InputDecorationTheme(
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(18)),
+              borderSide: BorderSide.none,
             ),
-            NavigationBar(
-              selectedIndex: _selectedTab,
-              onDestinationSelected: (index) {
-                setState(() => _selectedTab = index);
-              },
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.search),
-                  label: '搜索',
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(18)),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(18)),
+              borderSide: BorderSide(color: Color(0xFFE5654B), width: 1.5),
+            ),
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+          navigationBarTheme: const NavigationBarThemeData(
+            backgroundColor: Color(0xFFFFFEFA),
+            surfaceTintColor: Colors.transparent,
+            indicatorColor: Color(0xFFFFDDD3),
+            elevation: 0,
+          ),
+        ),
+        home: MultiProvider(
+          providers: [
+            ChangeNotifierProvider<DailyRecommendViewModel>(
+              create: (context) => DailyRecommendViewModel(
+                DailyRecommendService(dio ?? Dio()),
+              ),
+            ),
+          ],
+          child: Scaffold(
+            body: !ready
+                ? const Center(child: CircularProgressIndicator())
+                : IndexedStack(
+                    index: _selectedTab,
+                    children: [
+                      DiscoverPage(
+                        onSongTap: (song, songs) async => playSong(song, songs),
+                        onPlayAll: (songs) async {
+                          if (songs.isNotEmpty) {
+                            await playerManager?.playSongs(songs, startAt: 0);
+                          }
+                        },
+                        currentPlayingSongId: _currentSong?.identityKey,
+                      ),
+                      SearchPage(
+                        viewModel: SearchViewModel(repository!),
+                        onSongTapWithContext: (song, songs) async =>
+                            playSong(song, songs),
+                        onLoginTap: () {
+                          _navigatorKey.currentState?.push(
+                            MaterialPageRoute(
+                              builder: (_) => PlatformLoginPage(
+                                store: platformAuthStore!,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      LibraryPage(
+                        store: libraryStore!,
+                        onSongTap: playSong,
+                      ),
+                      ProfilePage(
+                        neteaseStore: neteaseAuthStore!,
+                        platformStore: platformAuthStore!,
+                      ),
+                    ],
+                  ),
+            bottomNavigationBar: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                MiniPlayer(
+                  song: _currentSong,
+                  isPlaying: _isPlaying,
+                  onPlayPause: () async {
+                    if (_currentSong == null) return;
+                    if (_isPlaying && playerManager != null) {
+                      await playerManager!.pause();
+                    } else {
+                      await playerManager?.resume();
+                    }
+                  },
+                  onTap: () {
+                    if (_currentSong == null) return;
+                    _navigatorKey.currentState?.push(
+                      MaterialPageRoute(
+                        builder: (_) => PlayerPage(
+                          song: _currentSong!,
+                          playerManager: playerManager!,
+                          style: lyricStyleStore!,
+                          lyricService: lyricService,
+                          downloadService: downloadService,
+                          colorExtractor: coverColorExtractor,
+                        ),
+                      ),
+                    );
+                  },
                 ),
-                NavigationDestination(
-                  icon: Icon(Icons.library_music_outlined),
-                  label: '音乐库',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.person_outline),
-                  label: '我的',
+                NavigationBar(
+                  selectedIndex: _selectedTab,
+                  onDestinationSelected: (index) {
+                    setState(() => _selectedTab = index);
+                  },
+                  destinations: const [
+                    NavigationDestination(
+                      icon: Icon(Icons.home),
+                      label: '发现',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.search),
+                      label: '搜索',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.library_music_outlined),
+                      label: '音乐库',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.person_outline),
+                      label: '我的',
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
-      ),
-    );
+          ),
+        ));
   }
 }
