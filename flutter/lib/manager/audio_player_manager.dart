@@ -35,10 +35,9 @@ class AudioPlayerManager {
 
   int get currentIndex => _currentIndex;
 
-  Song? get currentSong =>
-      _queue.length > _currentIndex && _currentIndex >= 0
-          ? _queue[_currentIndex]
-          : null;
+  Song? get currentSong => _queue.length > _currentIndex && _currentIndex >= 0
+      ? _queue[_currentIndex]
+      : null;
 
   Stream<Song?> get currentSongStream => _songController.stream;
 
@@ -107,9 +106,9 @@ class AudioPlayerManager {
           );
           continue;
         }
-        await playUrl(url, metadataSong: song);
         _currentIndex = candidateIndex;
         _songController.add(song);
+        await playUrl(url, metadataSong: song);
         return;
       } catch (error) {
         lastError = error;
@@ -124,8 +123,8 @@ class AudioPlayerManager {
     if (playbackMode == PlaybackMode.shuffle && _queue.length > 1) {
       final candidates = List<int>.generate(_queue.length, (index) => index)
         ..remove(_currentIndex);
-      await playQueueIndex(candidates
-          [DateTime.now().microsecondsSinceEpoch % candidates.length]);
+      await playQueueIndex(candidates[
+          DateTime.now().microsecondsSinceEpoch % candidates.length]);
       return;
     }
     if (_currentIndex + 1 < _queue.length) {
