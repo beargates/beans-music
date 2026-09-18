@@ -1,0 +1,30 @@
+name: beans_music_flutter
+description: A Flutter port of the Beans Music music search and playback flow.
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.7.0
+  just_audio: ^0.9.42
+  crypto: ^3.0.7
+  encrypt: ^5.0.0
+
+  cupertino_icons: ^1.0.0
+  shared_preferences: ^2.5.5
+  path_provider: ^2.1.5
+  just_audio_background: ^0.0.1-beta.17
+  audio_service: ^0.18.19
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
