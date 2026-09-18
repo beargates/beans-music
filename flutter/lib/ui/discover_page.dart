@@ -597,7 +597,6 @@ class RankingSection extends StatelessWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => onRankingTap(visible[index]),
                 ),
-                if (index < visible.length - 1) const Divider(height: 1),
               ],
               if (viewModel.rankings.length > 3)
                 TextButton.icon(

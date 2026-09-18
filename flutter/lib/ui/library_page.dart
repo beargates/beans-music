@@ -51,17 +51,41 @@ class _LibraryPageState extends State<LibraryPage> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(12),
-            child: SegmentedButton<int>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: 0, label: Text('收藏')),
-                ButtonSegment(value: 1, label: Text('历史')),
-              ],
-              selected: {_tabIndex},
-              onSelectionChanged: (value) {
-                setState(() => _tabIndex = value.first);
-              },
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+            child: Container(
+              height: 48,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: DefaultTabController(
+                length: 2,
+                initialIndex: _tabIndex,
+                child: TabBar(
+                  onTap: (index) => setState(() => _tabIndex = index),
+                  dividerColor: Colors.transparent,
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  indicator: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  labelColor: Colors.white,
+                  unselectedLabelColor:
+                      Theme.of(context).colorScheme.onSurfaceVariant,
+                  labelStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  tabs: const [
+                    Tab(text: '收藏'),
+                    Tab(text: '历史'),
+                  ],
+                ),
+              ),
             ),
           ),
           Expanded(

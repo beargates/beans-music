@@ -591,37 +591,17 @@ class _PlayerPageState extends State<PlayerPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   for (final row in rows)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Row(
-                        children: [
-                          Text(
-                            row.isCurrent ? '●' : '·',
-                            style: TextStyle(
-                              fontSize: 8,
-                              color: row.isCurrent
-                                  ? palette.accent
-                                  : palette.secondary.withValues(alpha: 0.5),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              row.text,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: row.isCurrent
-                                    ? FontWeight.w700
-                                    : FontWeight.w400,
-                                color: row.isCurrent
-                                    ? palette.text
-                                    : palette.secondary.withValues(alpha: 0.8),
-                              ),
-                            ),
-                          ),
-                        ],
+                    Text(
+                      row.text,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight:
+                            row.isCurrent ? FontWeight.w700 : FontWeight.w400,
+                        color: row.isCurrent
+                            ? palette.text
+                            : palette.secondary.withValues(alpha: 0.8),
                       ),
                     ),
                 ],
