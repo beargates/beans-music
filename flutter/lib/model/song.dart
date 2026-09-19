@@ -125,25 +125,27 @@ class Song {
         .join(' / ');
 
     final pay = json['pay'] as Map<String, dynamic>? ?? {};
-    final fee =
-        (json['fee'] as int?) ?? (pay['pay_play'] as int?) ?? (pay['payplay'] as int?) ?? 0;
+    final fee = (json['fee'] as int?) ??
+        (pay['pay_play'] as int?) ??
+        (pay['payplay'] as int?) ??
+        0;
 
     final album = json['album'] is Map
-      ? Map<String, dynamic>.from(json['album'] as Map)
-      : <String, dynamic>{};
+        ? Map<String, dynamic>.from(json['album'] as Map)
+        : <String, dynamic>{};
     final albumMid = json['albummid'] as String? ??
-      json['albumMID'] as String? ??
-      album['mid'] as String?;
+        json['albumMID'] as String? ??
+        album['mid'] as String?;
     final file = json['file'] as Map<String, dynamic>? ?? {};
     final mediaMid = file['media_mid'] as String? ??
         json['strMediaMid'] as String? ??
         json['media_mid'] as String?;
 
     return Song(
-        id: (json['songid'] as int?) ?? (json['id'] as int?) ?? 0,
-        name: json['songname'] as String? ?? json['name'] as String? ?? '',
+      id: (json['songid'] as int?) ?? (json['id'] as int?) ?? 0,
+      name: json['songname'] as String? ?? json['name'] as String? ?? '',
       artists: singer,
-        album: json['albumname'] as String? ??
+      album: json['albumname'] as String? ??
           json['albumName'] as String? ??
           album['name'] as String? ??
           '',
@@ -160,7 +162,9 @@ class Song {
 
   factory Song.fromKugouJson(Map<String, dynamic> json) {
     final albumName = _stringValue(
-      json['album_name'] ?? json['albumName'] ?? json['AlbumName'] ??
+      json['album_name'] ??
+          json['albumName'] ??
+          json['AlbumName'] ??
           (json['albuminfo'] is Map
               ? (json['albuminfo'] as Map)['name']
               : null),
@@ -194,13 +198,20 @@ class Song {
     final cover = _stringValue(json['img'] ??
         json['cover'] ??
         json['album_img'] ??
+        json['album_sizable_cover'] ??
         json['ImageUrl'] ??
         json['image'] ??
-        json['AlbumImg']);
-    final rawCover = _stringValue(json['Image'] ?? json['AlbumImage'] ?? cover);
+        json['AlbumImg'] ??
+        (json['trans_param'] is Map
+            ? (json['trans_param'] as Map)['union_cover']
+            : null));
+    final rawCover = _stringValue(
+      json['Image'] ?? json['AlbumImage'] ?? cover,
+    );
     final coverUrl = rawCover
-      .replaceAll('{size}', '400')
-      .replaceFirst('http://', 'https://');
+        .replaceAll('{size}', '400')
+        .replaceAll('%7Bsize%7D', '400')
+        .replaceFirst('http://', 'https://');
     final rawDuration = _intValue(
       json['duration'] ??
           json['Duration'] ??
@@ -263,7 +274,11 @@ class Song {
     void visit(dynamic value) {
       if (value is Map) {
         for (final entry in value.entries) {
-          final key = entry.key.toString().toLowerCase().replaceAll('_', '').replaceAll('-', '');
+          final key = entry.key
+              .toString()
+              .toLowerCase()
+              .replaceAll('_', '')
+              .replaceAll('-', '');
           final child = entry.value;
           if ({
             'fee',
@@ -274,7 +289,8 @@ class Song {
             'mediapaytype',
             'needpay',
           }.contains(key)) {
-            explicit = explicit > _intValue(child) ? explicit : _intValue(child);
+            explicit =
+                explicit > _intValue(child) ? explicit : _intValue(child);
           }
           if ({
             'privilege',
@@ -282,7 +298,8 @@ class Song {
             '320privilege',
             'sqprivilege',
           }.contains(key)) {
-            privilege = privilege > _intValue(child) ? privilege : _intValue(child);
+            privilege =
+                privilege > _intValue(child) ? privilege : _intValue(child);
           }
           if ({
             'vip',

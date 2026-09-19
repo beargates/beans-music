@@ -70,17 +70,17 @@ class DailyRecommendViewModel extends ChangeNotifier {
   }
 
   Future<void> _loadPlaylists() async {
-    if (_selectedPlatform != 0) {
-      _playlists = [];
-      return;
-    }
+    final source = SongSource.values[_selectedPlatform];
+    _service.setPlaylistSource(source);
     _playlistsLoading = true;
     notifyListeners();
     try {
       _playlists = await _service.getPlaylistSquare(
         category: _playlistCategory,
       );
-      final categories = await _service.getPlaylistCategories();
+      final categories = source == SongSource.netease
+          ? await _service.getPlaylistCategories()
+          : <String>[];
       if (categories.isNotEmpty) {
         _playlistCategories = ['全部', ...categories.where((c) => c != '全部')];
       }

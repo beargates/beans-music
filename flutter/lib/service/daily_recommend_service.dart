@@ -10,8 +10,13 @@ import 'cover_image.dart';
 class DailyRecommendService {
   final Dio _dio;
   static const String _baseUrl = 'https://music.163.com';
+  SongSource _playlistSource = SongSource.netease;
 
   DailyRecommendService(Dio dio) : _dio = dio;
+
+  void setPlaylistSource(SongSource source) {
+    _playlistSource = source;
+  }
 
   /// 获取网易云每日推荐歌曲
   Future<List<Song>> getDailySongs() async {
@@ -159,11 +164,14 @@ class DailyRecommendService {
     }
   }
 
-  /// 获取网易云歌单广场的热门歌单。
+  /// 获取当前平台的歌单广场。
   Future<List<Playlist>> getPlaylistSquare({
     String category = '全部',
     int limit = 12,
   }) async {
+    if (_playlistSource == SongSource.kugou) {
+      return _getKugouPlaylists(limit: limit);
+    }
     try {
       final response = await _dio.post(
         '$_baseUrl/weapi/playlist/list',
@@ -190,6 +198,28 @@ class DailyRecommendService {
     }
   }
 
+  Future<List<Playlist>> _getKugouPlaylists({int limit = 12}) async {
+    final response = await _dio.get(
+      'https://m.kugou.com/plist/index',
+      queryParameters: {'json': 'true', 'page': 1},
+      options: Options(headers: {'Referer': 'https://www.kugou.com/'}),
+    );
+    final json = _asMap(response.data);
+    final plist = json['plist'] is Map
+        ? Map<String, dynamic>.from(json['plist'] as Map)
+        : <String, dynamic>{};
+    final data = plist['list'] is Map
+        ? Map<String, dynamic>.from(plist['list'] as Map)
+        : <String, dynamic>{};
+    final rows = data['info'] is List ? data['info'] as List : const [];
+    return rows
+        .whereType<Map>()
+        .map((item) => Playlist.fromKugouJson(Map<String, dynamic>.from(item)))
+        .where((playlist) => playlist.id != 0 && playlist.name.isNotEmpty)
+        .take(limit)
+        .toList();
+  }
+
   Future<List<String>> getPlaylistCategories() async {
     try {
       final response = await _dio.post(
@@ -212,9 +242,10 @@ class DailyRecommendService {
 
   /// 获取网易云歌单歌曲。
   Future<List<Song>> getPlaylistSongs(Playlist playlist) async {
-    if (playlist.source != SongSource.netease) {
-      throw UnsupportedError('暂不支持该平台的歌单详情');
+    if (playlist.source == SongSource.kugou) {
+      return _getKugouPlaylistSongs(playlist.id);
     }
+
     try {
       final response = await _dio.post(
         '$_baseUrl/weapi/v3/playlist/detail',
@@ -239,6 +270,46 @@ class DailyRecommendService {
     } catch (e) {
       throw Exception('获取歌单歌曲失败: $e');
     }
+  }
+
+  Future<List<Song>> _getKugouPlaylistSongs(int playlistId) async {
+    final response = await _dio.get(
+      'https://m.kugou.com/plist/list/$playlistId',
+      queryParameters: {'json': 'true'},
+      options: Options(headers: {'Referer': 'https://www.kugou.com/'}),
+    );
+    final json = _asMap(response.data);
+    final rows = _findList(json, const ['songlist', 'songs', 'list', 'info']);
+    return rows
+        .whereType<Map>()
+        .map((item) => Song.fromKugouJson(Map<String, dynamic>.from(item)))
+        .where((song) => song.id != 0 && song.name.isNotEmpty)
+        .toList();
+  }
+
+  List<dynamic> _findList(Map<String, dynamic> json, List<String> keys) {
+    List<dynamic>? result;
+    void walk(dynamic value) {
+      if (result != null) return;
+      if (value is Map) {
+        for (final key in keys) {
+          if (value[key] is List) {
+            result = value[key] as List;
+            return;
+          }
+        }
+        for (final child in value.values) {
+          walk(child);
+        }
+      } else if (value is List) {
+        for (final child in value) {
+          walk(child);
+        }
+      }
+    }
+
+    walk(json);
+    return result ?? const [];
   }
 
   Map<String, dynamic> _asMap(dynamic value) {
@@ -329,7 +400,10 @@ class DailyRecommendService {
                 0,
             name: value['rankname'] as String? ?? '',
             subtitle: value['update_frequency'] as String? ?? '',
-            coverUrl: value['img'] as String?,
+            coverUrl: value['img'] as String? ??
+                value['img_9'] as String? ??
+                value['album_img_9'] as String? ??
+                value['imgurl'] as String?,
             source: SongSource.kugou,
           );
         })

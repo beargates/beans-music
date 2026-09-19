@@ -106,12 +106,10 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 onRankingTap: (ranking) => _showRanking(ranking, viewModel),
               ),
               const SizedBox(height: 32),
-              if (viewModel.selectedPlatform == 0)
-                PlaylistSquareSection(
-                  viewModel: viewModel,
-                  onPlaylistTap: (playlist) =>
-                      _showPlaylist(playlist, viewModel),
-                ),
+              PlaylistSquareSection(
+                viewModel: viewModel,
+                onPlaylistTap: (playlist) => _showPlaylist(playlist, viewModel),
+              ),
             ],
           ),
         ),
@@ -260,25 +258,27 @@ class PlaylistSquareSection extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 36,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: viewModel.playlistCategories.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (context, index) {
-              final category = viewModel.playlistCategories[index];
-              final selected = category == viewModel.playlistCategory;
-              return ChoiceChip(
-                label: Text(category),
-                selected: selected,
-                onSelected: (_) => viewModel.setPlaylistCategory(category),
-              );
-            },
+        if (viewModel.selectedPlatform == 0) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 36,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: viewModel.playlistCategories.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final category = viewModel.playlistCategories[index];
+                final selected = category == viewModel.playlistCategory;
+                return ChoiceChip(
+                  label: Text(category),
+                  selected: selected,
+                  onSelected: (_) => viewModel.setPlaylistCategory(category),
+                );
+              },
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
+          const SizedBox(height: 8),
+        ],
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
