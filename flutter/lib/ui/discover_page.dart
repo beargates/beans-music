@@ -507,6 +507,26 @@ class _PlaylistSongsModalState extends State<PlaylistSongsModal> {
                         leading: _RankingCover(url: song.coverUrl),
                         title: Text(song.name),
                         subtitle: Text('${song.artists} · ${song.album}'),
+                        trailing: song.isVip
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEE413F),
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                                child: const Text(
+                                  'VIP',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              )
+                            : null,
                         onTap: widget.onSongTap == null
                             ? null
                             : () async {
@@ -740,6 +760,26 @@ class _RankingSongsModalState extends State<RankingSongsModal> {
                         leading: _RankingCover(url: song.coverUrl),
                         title: Text(song.name),
                         subtitle: Text('${song.artists} · ${song.album}'),
+                        trailing: song.isVip
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEE413F),
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                                child: const Text(
+                                  'VIP',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              )
+                            : null,
                         onTap: widget.onSongTap == null
                             ? null
                             : () async {

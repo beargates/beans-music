@@ -20,11 +20,17 @@ class AudioPlayerManager {
   int _currentIndex = -1;
   PlaybackMode playbackMode = PlaybackMode.sequential;
   Future<String?> Function(Song song)? resolveUrl;
+  bool _advancing = false;
 
   AudioPlayerManager() {
     _player.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
-        unawaited(_advanceAfterCompletion());
+        if (!_advancing) {
+          _advancing = true;
+          unawaited(
+            _advanceAfterCompletion().whenComplete(() => _advancing = false),
+          );
+        }
       }
     });
   }
@@ -50,6 +56,12 @@ class AudioPlayerManager {
     if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
       throw StateError('无效的音频播放地址');
     }
+    final requestHeaders = <String, String>{
+      'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36',
+      if (uri.host.contains('qq.com')) 'Referer': 'https://y.qq.com/',
+      ...?headers,
+    };
     await _player.setAudioSource(
       AudioSource.uri(
         uri,
@@ -62,11 +74,7 @@ class AudioPlayerManager {
               ? null
               : Uri.tryParse(metadataSong!.coverUrl!),
         ),
-        headers: {
-          'User-Agent':
-              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36',
-          ...?headers,
-        },
+        headers: requestHeaders,
       ),
     );
     await _player.play();
@@ -75,7 +83,7 @@ class AudioPlayerManager {
   Future<void> playSongs(
     List<Song> songs, {
     int startAt = 0,
-    bool skipUnavailable = false,
+    bool skipUnavailable = true,
   }) async {
     if (songs.isEmpty) return;
     _queue
@@ -115,7 +123,9 @@ class AudioPlayerManager {
       }
     }
 
-    throw StateError('队列中没有可播放的歌曲：$lastError');
+    final detail =
+        lastError?.toString().replaceFirst('Bad state: ', '') ?? '未返回播放地址';
+    throw StateError('歌曲暂时无法播放：$detail');
   }
 
   Future<void> next() async {
@@ -180,4 +190,102 @@ class AudioPlayerManager {
   Stream<Duration> get positionStream => _player.positionStream;
   Stream<Duration?> get durationStream => _player.durationStream;
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
+}
+
+class BeansAudioHandler extends BaseAudioHandler
+    with QueueHandler, SeekHandler {
+  final AudioPlayerManager manager;
+
+  BeansAudioHandler(this.manager) {
+    manager.player.playerStateStream.listen((state) {
+      _publishState(state);
+    });
+    manager.currentSongStream.listen((song) {
+      if (song == null) return;
+      mediaItem.add(_mediaItem(song));
+      final index = manager.currentIndex;
+      if (index >= 0) {
+        playbackState.add(
+          playbackState.value.copyWith(
+            queueIndex: index,
+            updatePosition: Duration.zero,
+          ),
+        );
+      }
+      _publishState(manager.player.playerState);
+    });
+    manager.player.positionStream.listen((position) {
+      playbackState.add(
+        playbackState.value.copyWith(
+          updatePosition: position,
+          bufferedPosition: manager.player.bufferedPosition,
+        ),
+      );
+    });
+  }
+
+  @override
+  Future<void> play() => manager.resume();
+
+  @override
+  Future<void> pause() => manager.pause();
+
+  @override
+  Future<void> skipToNext() => manager.next();
+
+  @override
+  Future<void> skipToPrevious() => manager.previous();
+
+  @override
+  Future<void> seek(Duration position) => manager.seek(position);
+
+  @override
+  Future<void> stop() => manager.stop();
+
+  void setSongQueue(List<Song> songs) {
+    queue.add(songs.map(_mediaItem).toList());
+  }
+
+  static MediaItem _mediaItem(Song song) => MediaItem(
+        id: song.identityKey,
+        title: song.name,
+        artist: song.artists,
+        album: song.album,
+        duration: song.duration,
+        artUri: song.coverUrl == null ? null : Uri.tryParse(song.coverUrl!),
+      );
+
+  void _publishState(PlayerState state) {
+    playbackState.add(
+      playbackState.value.copyWith(
+        playing: state.playing,
+        processingState: _processingState(state.processingState),
+        queueIndex: manager.currentIndex < 0 ? 0 : manager.currentIndex,
+        controls: const [
+          MediaControl.skipToPrevious,
+          MediaControl.play,
+          MediaControl.pause,
+          MediaControl.skipToNext,
+        ],
+        updatePosition: manager.player.position,
+        bufferedPosition: manager.player.bufferedPosition,
+        speed: manager.player.speed,
+      ),
+    );
+  }
+
+  static AudioProcessingState _processingState(ProcessingState state) {
+    switch (state) {
+      case ProcessingState.idle:
+        return AudioProcessingState.idle;
+      case ProcessingState.loading:
+        return AudioProcessingState.loading;
+      case ProcessingState.buffering:
+        return AudioProcessingState.buffering;
+      case ProcessingState.ready:
+        return AudioProcessingState.ready;
+      case ProcessingState.completed:
+        return AudioProcessingState.completed;
+    }
+  }
 }

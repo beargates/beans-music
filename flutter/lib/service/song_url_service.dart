@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import '../model/song.dart';
 import 'kugou_url_service.dart';
 import 'weapi_utils.dart';
+import 'third_party_song_url_service.dart';
 
 Map<String, dynamic> _decodeResponseMap(dynamic value) {
   if (value is Map) return Map<String, dynamic>.from(value);
@@ -88,74 +89,123 @@ class QQSongUrlService {
     String? mediaMid,
   }) async {
     try {
-      final mid = mediaMid ?? songMid;
-      if (mid.isEmpty) {
+      if (songMid.isEmpty) {
         return null;
       }
 
-      final vkeyUrl =
-          'https://u.y.qq.com/cgi-bin/musicu.fcg?format=json&data={"req":{"module":"vkey.GetVkeyServer","method":"CgiGetVkey","param":{"guid":"1234567890","songmid":["$mid"],"songtype":[0],"uin":"0","loginflag":1,"platform":"20"}}}'
-              .replaceAll('\n', '');
+      final preferredMid =
+          mediaMid == null || mediaMid.isEmpty ? songMid : mediaMid;
+      final guid =
+          (DateTime.now().microsecondsSinceEpoch % 900000000 + 100000000)
+              .toString();
+      for (final quality in const ['M800', 'M500', 'C400']) {
+        final extension = quality == 'C400' ? 'm4a' : 'mp3';
+        final filenames = {
+          '$quality$songMid$preferredMid.$extension',
+          '$quality$preferredMid.$extension',
+          '$quality$songMid$songMid.$extension',
+          '$quality$songMid.$extension',
+        }.toList();
+        final payload = {
+          'comm': {'uin': 0, 'format': 'json', 'ct': 24, 'cv': 0},
+          'req': {
+            'module': 'CDN.SrfCdnDispatchServer',
+            'method': 'GetCdnDispatch',
+            'param': {'guid': guid, 'calltype': 0, 'userip': ''},
+          },
+          'req_0': {
+            'module': 'vkey.GetVkeyServer',
+            'method': 'CgiGetVkey',
+            'param': {
+              'guid': guid,
+              'filename': filenames,
+              'songmid': List.filled(filenames.length, songMid),
+              'songtype': List.filled(filenames.length, 0),
+              'uin': '0',
+              'loginflag': 1,
+              'platform': '20',
+            },
+          },
+        };
 
-      final response = await dio.get(vkeyUrl, options: Options(headers: {
-        'Referer': 'https://y.qq.com/',
-        'Origin': 'https://y.qq.com',
-      }));
-
-      final responseData = _decodeResponseMap(response.data);
-      final reqData = responseData['req'] is Map
-          ? Map<String, dynamic>.from(responseData['req'] as Map)
-          : <String, dynamic>{};
-      final data = reqData['data'] is Map
-          ? Map<String, dynamic>.from(reqData['data'] as Map)
-          : <String, dynamic>{};
-      final midUrlInfo = (data['midurlinfo'] as List?)?.firstOrNull;
-      final url = midUrlInfo is Map ? midUrlInfo['purl'] as String? : null;
-
-      if (url == null || url.isEmpty) {
-        return null;
+        final response = await dio.get(
+          'https://u.y.qq.com/cgi-bin/musicu.fcg',
+          queryParameters: {
+            'format': 'json',
+            'data': jsonEncode(payload),
+          },
+          options: Options(headers: {
+            'Referer': 'https://y.qq.com/',
+            'Origin': 'https://y.qq.com',
+            'Cookie': 'uin=0; qqmusic_fromtag=66',
+          }),
+        );
+        final responseData = _decodeResponseMap(response.data);
+        final request = responseData['req_0'];
+        final reqData = request is Map
+            ? Map<String, dynamic>.from(request)
+            : <String, dynamic>{};
+        final data = reqData['data'] is Map
+            ? Map<String, dynamic>.from(reqData['data'] as Map)
+            : <String, dynamic>{};
+        final infos = (data['midurlinfo'] as List?) ?? const [];
+        final info = infos.whereType<Map>().firstWhere(
+              (item) => (item['purl']?.toString() ?? '').isNotEmpty,
+              orElse: () => <String, dynamic>{},
+            );
+        final purl = info['purl']?.toString() ?? '';
+        if (purl.isEmpty) continue;
+        final sip = (data['sip'] as List?)?.first?.toString();
+        final base = sip == null || sip.isEmpty
+            ? 'https://isure.stream.qqmusic.qq.com/'
+            : (sip.startsWith('http') ? sip : 'https://$sip');
+        final url = purl.startsWith('http')
+            ? purl
+            : '${base.endsWith('/') ? base : '$base/'}$purl';
+        return SongUrlResult(url: url, quality: quality);
       }
-
-      return SongUrlResult(
-        url: 'https://isure.stream.qqmusic.qq.com/$url',
-        quality: 'qq',
-        isAvailable: true,
-      );
+      return null;
     } catch (_) {
       return null;
     }
   }
-
 }
 
 class SongUrlRepository {
   final NeteaseSongUrlService netease;
   final QQSongUrlService qq;
   final KugouSongUrlService? kugou;
+  final ThirdPartySongUrlService? thirdParty;
 
   SongUrlRepository({
     required this.netease,
     required this.qq,
     this.kugou,
+    this.thirdParty,
   });
 
   Future<SongUrlResult?> resolveUrl(Song song) async {
+    SongUrlResult? resolved;
     switch (song.source) {
       case SongSource.netease:
-        return netease.getSongUrl(song.id);
+        resolved = await netease.getSongUrl(song.id);
+        break;
       case SongSource.qq:
-        return qq.getSongUrl(
+        resolved = await qq.getSongUrl(
           songMid: song.qqMid ?? '',
           mediaMid: song.qqMediaMid,
         );
+        break;
       case SongSource.kugou:
         final resolved = await kugou?.getSongUrl(song.kugouHash ?? '');
-        if (resolved == null) return null;
-        return SongUrlResult(
-          url: resolved.url,
-          quality: 'kugou',
-          isAvailable: resolved.isAvailable,
-        );
+        if (resolved != null) {
+          return SongUrlResult(
+            url: resolved.url,
+            quality: 'kugou',
+            isAvailable: resolved.isAvailable,
+          );
+        }
     }
+    return resolved ?? await thirdParty?.getSongUrl(song);
   }
 }

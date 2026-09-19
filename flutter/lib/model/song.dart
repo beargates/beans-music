@@ -159,49 +159,79 @@ class Song {
   }
 
   factory Song.fromKugouJson(Map<String, dynamic> json) {
-    final albumName = json['album_name'] as String? ??
-      json['albumName'] as String? ??
-      json['AlbumName'] as String? ??
-      '';
-    final artistName = json['singername'] as String? ??
-      json['singer_name'] as String? ??
-      json['SingerName'] as String? ??
-      ((json['Singers'] as List?)?.firstOrNull as Map?)?['name'] as String? ??
-      '';
-    final hash = json['hash'] as String? ??
-      json['Hash'] as String? ??
-      json['FileHash'] as String? ??
-      json['HQFileHash'] as String? ??
-      '';
-    final albumId = (json['album_id'] ?? json['albumID'] ?? json['AlbumID'])?.toString() ?? '';
-    final cover = json['img'] as String? ??
-      json['cover'] as String? ??
-      json['album_img'] as String? ??
-      json['ImageUrl'] as String? ??
-      '';
-    final rawCover = json['Image'] as String? ??
-      json['AlbumImage'] as String? ??
-      cover;
+    final albumName = _stringValue(
+      json['album_name'] ?? json['albumName'] ?? json['AlbumName'] ??
+          (json['albuminfo'] is Map
+              ? (json['albuminfo'] as Map)['name']
+              : null),
+    );
+    var artistName = _stringValue(
+      json['singername'] ??
+          json['singer_name'] ??
+          json['SingerName'] ??
+          json['author_name'] ??
+          json['singer'] ??
+          json['artist'],
+    );
+    if (artistName.isEmpty && json['authors'] is List) {
+      artistName = (json['authors'] as List)
+          .whereType<Map>()
+          .map((author) => _stringValue(
+                author['author_name'] ?? author['name'],
+              ))
+          .where((name) => name.isNotEmpty)
+          .join(' / ');
+    }
+    final hash = _stringValue(json['hash'] ??
+        json['Hash'] ??
+        json['FileHash'] ??
+        json['HQFileHash'] ??
+        json['file_hash'] ??
+        json['audio_hash']);
+    final albumId = _stringValue(
+      json['album_id'] ?? json['albumID'] ?? json['AlbumID'] ?? json['albumid'],
+    );
+    final cover = _stringValue(json['img'] ??
+        json['cover'] ??
+        json['album_img'] ??
+        json['ImageUrl'] ??
+        json['image'] ??
+        json['AlbumImg']);
+    final rawCover = _stringValue(json['Image'] ?? json['AlbumImage'] ?? cover);
     final coverUrl = rawCover
       .replaceAll('{size}', '400')
       .replaceFirst('http://', 'https://');
-    final durationSec = (json['duration'] as int?) ??
-      (json['Duration'] as int?) ??
-      (json['time'] as int?) ??
-      0;
-    final privilege = (json['PayType'] as int?) ??
-      (json['Privilege'] as int?) ??
-      (json['HQPrivilege'] as int?) ??
-      0;
+    final rawDuration = _intValue(
+      json['duration'] ??
+          json['Duration'] ??
+          json['time'] ??
+          json['timelength'] ??
+          json['timeLen'] ??
+          json['interval'],
+    );
+    final durationSec = rawDuration > 1000 ? rawDuration ~/ 1000 : rawDuration;
+    final privilege = _kugouVipFee(json);
     final rawId = json['id'] ?? json['ID'] ?? json['Audioid'];
     final id = int.tryParse(rawId?.toString() ?? '') ?? hash.hashCode;
+    var songName = _stringValue(
+      json['songname'] ?? json['song_name'] ?? json['name'] ?? json['SongName'],
+    );
+    final fileName = _stringValue(json['filename'] ?? json['FileName']);
+    if (fileName.isNotEmpty) {
+      final parts = fileName.split(' - ');
+      if (parts.length >= 2) {
+        if (artistName.isEmpty) artistName = parts.first.trim();
+        if (songName.isEmpty || songName == fileName) {
+          songName = parts.skip(1).join(' - ').trim();
+        }
+      } else if (songName.isEmpty) {
+        songName = fileName;
+      }
+    }
 
     return Song(
       id: id,
-      name: json['songname'] as String? ??
-        json['name'] as String? ??
-        json['SongName'] as String? ??
-        '',
+      name: songName,
       artists: artistName,
       album: albumName,
       coverUrl: coverUrl.isEmpty ? null : coverUrl,
@@ -211,5 +241,76 @@ class Song {
       kugouAlbumId: albumId,
       fee: privilege,
     );
+  }
+
+  static String _stringValue(dynamic value) {
+    if (value == null) return '';
+    if (value is String) return value.trim();
+    if (value is num || value is bool) return value.toString();
+    return '';
+  }
+
+  static int _intValue(dynamic value) {
+    if (value is num) return value.toInt();
+    return int.tryParse(_stringValue(value)) ?? 0;
+  }
+
+  static int _kugouVipFee(Map<String, dynamic> json) {
+    var explicit = 0;
+    var privilege = 0;
+    var flagged = false;
+
+    void visit(dynamic value) {
+      if (value is Map) {
+        for (final entry in value.entries) {
+          final key = entry.key.toString().toLowerCase().replaceAll('_', '').replaceAll('-', '');
+          final child = entry.value;
+          if ({
+            'fee',
+            'feetype',
+            'paytype',
+            'paytype320',
+            'paytypesq',
+            'mediapaytype',
+            'needpay',
+          }.contains(key)) {
+            explicit = explicit > _intValue(child) ? explicit : _intValue(child);
+          }
+          if ({
+            'privilege',
+            'mediaprivilege',
+            '320privilege',
+            'sqprivilege',
+          }.contains(key)) {
+            privilege = privilege > _intValue(child) ? privilege : _intValue(child);
+          }
+          if ({
+            'vip',
+            'isvip',
+            'onlyvipplayable',
+            'viprequired',
+            'needvip',
+          }.contains(key)) {
+            final text = _stringValue(child).toLowerCase();
+            flagged = flagged ||
+                (child is bool && child) ||
+                _intValue(child) > 0 ||
+                text == 'true' ||
+                text.contains('vip') ||
+                text.contains('会员');
+          }
+          visit(child);
+        }
+      } else if (value is List) {
+        for (final child in value) {
+          visit(child);
+        }
+      }
+    }
+
+    visit(json);
+    if (explicit > 0) return explicit;
+    if (privilege >= 9 || flagged) return 1;
+    return 0;
   }
 }

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,6 +17,7 @@ import 'service/qq_music_service.dart';
 import 'service/dio_client.dart';
 import 'service/download_service.dart';
 import 'service/song_url_service.dart';
+import 'service/third_party_song_url_service.dart';
 import 'service/cover_palette.dart';
 import 'store/library_store.dart';
 import 'store/lyric_style_store.dart';
@@ -47,6 +49,7 @@ class _BeansMusicAppState extends State<BeansMusicApp> {
   LyricService? lyricService;
   DownloadService? downloadService;
   AudioPlayerManager? playerManager;
+  BeansAudioHandler? audioHandler;
   PlatformAuthStore? platformAuthStore;
   NeteaseAuthStore? neteaseAuthStore;
   LibraryStore? libraryStore;
@@ -82,9 +85,22 @@ class _BeansMusicAppState extends State<BeansMusicApp> {
       netease: NeteaseSongUrlService(clientDio),
       qq: QQSongUrlService(clientDio),
       kugou: KugouSongUrlService(clientDio),
+      thirdParty: ThirdPartySongUrlService(
+        clientDio,
+        apiKey: const String.fromEnvironment('BEANS_THIRD_PARTY_API_KEY'),
+      ),
     );
     lyricService = LyricService(clientDio);
     playerManager = AudioPlayerManager();
+    audioHandler = await AudioService.init(
+      builder: () => BeansAudioHandler(playerManager!),
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.beans.music.playback',
+        androidNotificationChannelName: 'Beans Music',
+        androidNotificationOngoing: true,
+        androidStopForegroundOnPause: true,
+      ),
+    );
     playerManager!.resolveUrl = (song) async {
       final resolved = await songUrlRepository!.resolveUrl(song);
       if (resolved == null || !resolved.isAvailable) return null;
@@ -116,14 +132,16 @@ class _BeansMusicAppState extends State<BeansMusicApp> {
     if (resolvedIndex < 0) return;
     try {
       await libraryStore?.addHistory(song);
+      audioHandler?.setSongQueue(songs);
       await playerManager?.playSongs(
         songs,
         startAt: resolvedIndex,
         skipUnavailable: false,
       );
     } catch (error) {
+      final message = error.toString().replaceFirst('Bad state: ', '');
       _messengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text('播放失败：$error')),
+        SnackBar(content: Text('播放失败：$message')),
       );
     }
   }
@@ -201,7 +219,12 @@ class _BeansMusicAppState extends State<BeansMusicApp> {
                         onSongTap: (song, songs) async => playSong(song, songs),
                         onPlayAll: (songs) async {
                           if (songs.isNotEmpty) {
-                            await playerManager?.playSongs(songs, startAt: 0);
+                            audioHandler?.setSongQueue(songs);
+                            await playerManager?.playSongs(
+                              songs,
+                              startAt: 0,
+                              skipUnavailable: true,
+                            );
                           }
                         },
                         currentPlayingSongId: _currentSong?.identityKey,
