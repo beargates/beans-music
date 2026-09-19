@@ -29,7 +29,54 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Future<void> _clearHistory() async {
-    await widget.store.clearHistory();
+    await _confirmAndClear(
+      title: '清空播放历史',
+      message: '确定要删除全部播放历史吗？此操作无法撤销。',
+      clear: widget.store.clearHistory,
+    );
+  }
+
+  Future<void> _clearFavorites() async {
+    await _confirmAndClear(
+      title: '清空收藏',
+      message: '确定要删除全部收藏歌曲吗？此操作无法撤销。',
+      clear: widget.store.clearFavorites,
+    );
+  }
+
+  Future<void> _confirmAndClear({
+    required String title,
+    required String message,
+    required Future<void> Function() clear,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await clear();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _removeSong(Song song) async {
+    if (_tabIndex == 0) {
+      await widget.store.removeFavorite(song);
+    } else {
+      await widget.store.removeHistory(song);
+    }
     if (mounted) setState(() {});
   }
 
@@ -40,10 +87,10 @@ class _LibraryPageState extends State<LibraryPage> {
       appBar: AppBar(
         title: const Text('音乐库'),
         actions: [
-          if (isHistory && _songs.isNotEmpty)
+          if (_songs.isNotEmpty)
             IconButton(
-              tooltip: '清空历史',
-              onPressed: _clearHistory,
+              tooltip: isHistory ? '清空历史' : '清空收藏',
+              onPressed: isHistory ? _clearHistory : _clearFavorites,
               icon: const Icon(Icons.delete_sweep_outlined),
             ),
         ],
@@ -111,13 +158,26 @@ class _LibraryPageState extends State<LibraryPage> {
                               ),
                         title: Text(song.name),
                         subtitle: Text('${song.artists} · ${song.album}'),
-                        trailing: IconButton(
-                          tooltip: favorite ? '取消收藏' : '收藏',
-                          onPressed: () => _toggleFavorite(song),
-                          icon: Icon(
-                            favorite ? Icons.favorite : Icons.favorite_border,
-                            color: favorite ? Colors.red : null,
-                          ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (!isHistory)
+                              IconButton(
+                                tooltip: favorite ? '取消收藏' : '收藏',
+                                onPressed: () => _toggleFavorite(song),
+                                icon: Icon(
+                                  favorite
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  color: favorite ? Colors.red : null,
+                                ),
+                              ),
+                            IconButton(
+                              tooltip: '删除',
+                              onPressed: () => _removeSong(song),
+                              icon: const Icon(Icons.delete_outline),
+                            ),
+                          ],
                         ),
                         onTap: () => widget.onSongTap(song, _songs),
                       );

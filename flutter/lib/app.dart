@@ -79,7 +79,10 @@ class _BeansMusicAppState extends State<BeansMusicApp> {
     repository = MusicRepository(
       netease: NeteaseMusicService(clientDio),
       qq: QQMusicService(clientDio),
-      kugou: KugouMusicService(clientDio),
+      kugou: KugouMusicService(
+        clientDio,
+        authStore: platformAuthStore,
+      ),
     );
     songUrlRepository = SongUrlRepository(
       netease: NeteaseSongUrlService(clientDio),

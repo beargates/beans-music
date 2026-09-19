@@ -9,15 +9,15 @@ class QQMusicService {
 
   QQMusicService(this.dio);
 
-  Future<List<Song>> search(String keyword, {int limit = 30, int offset = 0}) async {
-    final modernResults = await _searchMusicu(
+  Future<List<Song>> search(String keyword,
+      {int limit = 30, int offset = 0}) async {
+    final results = await _searchLegacy(
       keyword,
       limit: limit,
       offset: offset,
     );
-    if (modernResults.isNotEmpty) return modernResults;
-
-    return _searchLegacy(keyword, limit: limit, offset: offset);
+    if (results.isNotEmpty) return results;
+    return _searchMusicu(keyword, limit: limit, offset: offset);
   }
 
   Future<List<Song>> _searchMusicu(
@@ -91,31 +91,33 @@ class QQMusicService {
     final page = (offset ~/ limit) + 1;
     final encoded = Uri.encodeComponent(keyword);
 
-    final url =
-        'https://c.y.qq.com/soso/fcgi-bin/client_search_cp'
-        '?ct=24&qqmusic_ver=1298&new_json=1'
-        '&remoteplace=txt.yqq.song'
-        '&searchid=0&t=0&aggr=1&cr=1'
-        '&lossless=0&flag_qc=0'
-        '&p=$page'
-        '&n=$limit'
-        '&w=$encoded'
-        '&format=json';
+    final url = 'https://c.y.qq.com/soso/fcgi-bin/search_for_qq_cp'
+        '?format=json&w=$encoded&n=$limit&p=$page&t=0';
 
-    final response = await dio.get(url);
+    final response = await dio.get(
+      url,
+      options: Options(
+        headers: {
+          'Referer': 'https://y.qq.com/portal/player.html',
+          'Cookie': 'uin=0; qqmusic_fromtag=66',
+          'User-Agent':
+              'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 QQMusic/9.0.5',
+        },
+      ),
+    );
 
     final responseData = _asMap(response.data);
     final data = responseData['data'] is Map
-      ? Map<String, dynamic>.from(responseData['data'] as Map)
-      : <String, dynamic>{};
+        ? Map<String, dynamic>.from(responseData['data'] as Map)
+        : <String, dynamic>{};
     final songData = data['song'] is Map
-      ? Map<String, dynamic>.from(data['song'] as Map)
-      : <String, dynamic>{};
+        ? Map<String, dynamic>.from(data['song'] as Map)
+        : <String, dynamic>{};
     final list = songData['list'] is List ? songData['list'] as List : const [];
 
     return list
-      .whereType<Map>()
-      .map((item) => Song.fromQQJson(Map<String, dynamic>.from(item)))
+        .whereType<Map>()
+        .map((item) => Song.fromQQJson(Map<String, dynamic>.from(item)))
         .toList();
   }
 

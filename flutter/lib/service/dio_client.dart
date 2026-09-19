@@ -20,11 +20,11 @@ class DioClient {
           final host = options.uri.host;
 
           final headers = <String, dynamic>{
-            ...options.headers,
             'Referer': 'https://music.163.com',
             'Origin': 'https://music.163.com',
             'User-Agent':
                 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            ...options.headers,
           };
 
           if (cookie != null && cookie.isNotEmpty) {

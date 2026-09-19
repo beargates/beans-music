@@ -54,6 +54,21 @@ class LibraryStore {
     await prefs.remove(_historyKey);
   }
 
+  Future<void> removeFavorite(Song song) async {
+    _favorites.removeWhere((item) => item.identityKey == song.identityKey);
+    await _save(_favoritesKey, _favorites);
+  }
+
+  Future<void> removeHistory(Song song) async {
+    _history.removeWhere((item) => item.identityKey == song.identityKey);
+    await _save(_historyKey, _history);
+  }
+
+  Future<void> clearFavorites() async {
+    _favorites.clear();
+    await prefs.remove(_favoritesKey);
+  }
+
   Future<void> _save(String key, List<Song> songs) async {
     await prefs.setString(
       key,
